@@ -392,6 +392,22 @@
         <meta-data
             android:name="com.android.automotive"
             android:resource="@xml/automotive_app_desc"/>
+        <activity
+            android:name=".vehicle.CarSensorsActivity"
+            android:label="Car Sensors"
+            android:exported="true"
+            android:resizeableActivity="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.ford.pano.pilot.intent.category.WIDGET" />
+            </intent-filter>
+            <meta-data
+                android:name="numberOfColumns"
+                android:value="10" />
+            <meta-data
+                android:name="alignment"
+                android:value="right" />
+        </activity>
         <service
             android:name=".vehicle.HaCarAppService"
             android:exported="true">

@@ -86,6 +86,7 @@ webkit = "1.13.0"
 wear-remote-interactions = "1.1.0"
 workRuntimeKtx = "2.10.1"
 zxing = "4.3.0"
+composeMaterial = "1.4.1"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
@@ -230,6 +231,7 @@ wear-tiles = { module = "androidx.wear.tiles:tiles", version.ref = "wear-tiles" 
 wear-tooling = { module = "androidx.wear:wear-tooling-preview", version.ref = "wear-tooling" }
 webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 zxing = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxing" }
+androidx-compose-material = { group = "androidx.wear.compose", name = "compose-material", version.ref = "composeMaterial" }
 
 [bundles]
 androidx-test =["androidx-test-core", "androidx-test-ext", "androidx-test-rules", "androidx-test-runner"]

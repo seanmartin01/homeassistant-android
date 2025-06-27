@@ -34,8 +34,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
-import androidx.wear.compose.material.ListHeader
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.homeassistant.companion.android.common.R as commonR
@@ -46,6 +44,7 @@ import io.homeassistant.companion.android.common.data.servers.ServerManager
 import io.homeassistant.companion.android.util.compose.HomeAssistantAppTheme
 import io.homeassistant.companion.android.util.previewEntity1
 import io.homeassistant.companion.android.util.previewEntity2
+import io.homeassistant.companion.android.util.vehicle.AutomotiveListHeader
 import java.util.Calendar
 import javax.inject.Inject
 import kotlin.math.floor
@@ -59,7 +58,7 @@ class VehicleFavoritesPanoActivity : ComponentActivity() {
     @Inject
     lateinit var serverManager: ServerManager
 
-    private val viewModel: VehicleFavoritesPanoViewModel by viewModels{ VehicleFavoritesPanoViewModelFactory()}
+    private val viewModel by viewModels<VehicleFavoritesPanoViewModel>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,7 +96,7 @@ fun VehicleFavoritesPanoScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text("Home Assistant Favorites") }) }
     ) { padding ->
-        ScalingLazyColumn(
+        LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = padding
         ) {
@@ -106,39 +105,20 @@ fun VehicleFavoritesPanoScreen(
                 if (entities.isNotEmpty()) {
                     item {
                         if (entityLists.size > 1) {
-                            ListHeader() {
-                                Row {
-                                    Text(
-                                        text = header
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                }
-                            }
+                            AutomotiveListHeader(
+                                text = header
+                            )
+                            Spacer(modifier = Modifier.width(4.dp)) // This was from inside the ListHeader
                         } else {
-                            ListHeader {
-                                val maxLines = with(LocalDensity.current) {
-                                    if (LocalTextStyle.current.fontSize.isSp) {
-                                        floor(48 / LocalTextStyle.current.fontSize.toDp().value).toInt() // A ListHeader is 48dp
-                                    } else {
-                                        1 // Fallback as em cannot be converted
-                                    }
-                                }
-                                Text(
-                                    text = header,
-                                    modifier = Modifier,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = maxLines,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
+                            AutomotiveListHeader (
+                                text = header
+                            )
                         }
                     }
                     val filtered = entities.filter { entityListFilter(it) }
                     items(filtered, key = { it.entityId }) { entity ->
                         EntityIndicator(
                             entity,
-                            { },
-                            false,
                             isToastEnabled,
                         )
                     }

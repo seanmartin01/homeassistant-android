@@ -28,7 +28,6 @@ import io.homeassistant.companion.android.common.data.websocket.impl.entities.Ar
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.DeviceRegistryResponse
 import io.homeassistant.companion.android.common.data.websocket.impl.entities.EntityRegistryResponse
 import io.homeassistant.companion.android.common.sensors.SensorManager
-import io.homeassistant.companion.android.data.SimplifiedEntity
 import io.homeassistant.companion.android.database.sensor.SensorDao
 import io.homeassistant.companion.android.database.wear.CameraTile
 import io.homeassistant.companion.android.database.wear.CameraTileDao
@@ -59,8 +58,9 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
     private val sensorsDao: SensorDao,
     private val cameraTileDao: CameraTileDao,
     private val thermostatTileDao: ThermostatTileDao,
-    private val serverManager: ServerManager
-) : ViewModel() {
+    private val serverManager: ServerManager,
+    application: Application
+) : AndroidViewModel(application) {
 
     enum class LoadingState {
         LOADING,
@@ -73,8 +73,7 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
     private var entityRegistry: List<EntityRegistryResponse>? = null
 
     // TODO: This is bad, do this instead: https://stackoverflow.com/questions/46283981/android-viewmodel-additional-arguments
-    fun init(homePresenter: HomePresenter) {
-        this.homePresenter = homePresenter
+    fun init() {
         loadSettings()
         loadEntities()
     }
@@ -91,8 +90,6 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
      */
     val favoriteEntityIds = favoritesDao.getAllFlow().collectAsState()
     private val favoriteCaches = favoriteCachesDao.getAll()
-
-    val shortcutEntitiesMap = mutableStateMapOf<Int?, SnapshotStateList<SimplifiedEntity>>()
 
     val cameraTiles = cameraTileDao.getAllFlow().collectAsState()
     var cameraEntitiesMap = mutableStateMapOf<String, SnapshotStateList<Entity<*>>>()
@@ -126,8 +123,6 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
         private set
     var isShowShortcutTextEnabled = mutableStateOf(false)
         private set
-    var templateTiles = mutableStateMapOf<Int, TemplateTileConfig>()
-        private set
 
     companion object {
         val domainsWithNames = mapOf(
@@ -157,35 +152,13 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
             if (!serverManager.isRegistered()) {
                 return@launch
             }
-            loadShortcutTileEntities()
-            isToastEnabled.value = serverManager.webSocketRepository()
-            isShowShortcutTextEnabled.value = homePresenter.getShowShortcutText()
-            templateTiles.clear()
-            templateTiles.putAll(homePresenter.getAllTemplateTiles())
+            isToastEnabled.value = true
+            isShowShortcutTextEnabled.value = true
 
             val assistantAppComponent = ComponentName(
                 BuildConfig.APPLICATION_ID,
                 "io.homeassistant.companion.android.conversation.AssistantActivity"
             )
-
-            refreshNotificationPermission()
-        }
-    }
-
-    fun loadShortcutTileEntities() {
-        viewModelScope.launch {
-            val map = homePresenter.getAllTileShortcuts().mapValues { (_, entities) ->
-                entities.toMutableStateList()
-            }
-            shortcutEntitiesMap.clear()
-            shortcutEntitiesMap.putAll(map)
-        }
-    }
-
-    fun loadTemplateTiles() {
-        viewModelScope.launch {
-            templateTiles.clear()
-            templateTiles.putAll(homePresenter.getAllTemplateTiles())
         }
     }
 
@@ -198,9 +171,8 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
                 updateUI()
 
                 // Finished initial load, update state
-                val webSocketState = homePresenter.getWebSocketState()
+                val webSocketState = serverManager.webSocketRepository().getConnectionState()
                 if (webSocketState == WebSocketState.CLOSED_AUTH) {
-                    homePresenter.onInvalidAuthorization()
                     return@launch
                 }
                 loadingState.value = if (webSocketState == WebSocketState.ACTIVE) {
@@ -216,7 +188,7 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
     }
 
     private fun updateEntityStates(entity: Entity<*>) {
-        if (supportedDomains().contains(entity.domain)) {
+        if (supportedDomains.contains(entity.domain)) {
             entities[entity.entityId] = entity
             // add to cache if part of favorites
             if (favoriteEntityIds.value.contains(entity.entityId)) {
@@ -227,10 +199,8 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
 
     suspend fun updateUI() = withContext(Dispatchers.IO) {
         if (!serverManager.isRegistered()) return@withContext
-        val getAreaRegistry = async { homePresenter.getAreaRegistry() }
-        val getDeviceRegistry = async { homePresenter.getDeviceRegistry() }
-        val getEntityRegistry = async { homePresenter.getEntityRegistry() }
-        val getEntities = async { homePresenter.getEntities() }
+        val getEntityRegistry = async { serverManager.webSocketRepository().getEntityRegistry() }
+        val getEntities = async { serverManager.integrationRepository().getEntities() }
 
         entityRegistry = getEntityRegistry.await()
 
@@ -252,7 +222,7 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
         if (!serverManager.isRegistered()) {
             return
         }
-        homePresenter.getEntityUpdates(supportedEntities.value)?.collect {
+        serverManager.integrationRepository().getEntityUpdates(supportedEntities.value)?.collect {
             updateEntityStates(it)
         }
     }
@@ -261,8 +231,8 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
         if (!serverManager.isRegistered()) {
             return
         }
-        homePresenter.getEntityRegistryUpdates()?.throttleLatest(1000)?.collect {
-            entityRegistry = homePresenter.getEntityRegistry()
+        serverManager.webSocketRepository().getEntityRegistryUpdates()?.throttleLatest(1000)?.collect {
+            entityRegistry = serverManager.webSocketRepository().getEntityRegistry()
             _supportedEntities.value = getSupportedEntities()
             updateEntityDomains()
         }
@@ -319,27 +289,6 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
         entitiesByDomainOrder.addAll(domainsList)
     }
 
-    fun toggleEntity(entityId: String, state: String) {
-        viewModelScope.launch {
-            homePresenter.onEntityClicked(entityId, state)
-        }
-    }
-    fun setFanSpeed(entityId: String, speed: Float) {
-        viewModelScope.launch {
-            homePresenter.onFanSpeedChanged(entityId, speed)
-        }
-    }
-    fun setBrightness(entityId: String, brightness: Float) {
-        viewModelScope.launch {
-            homePresenter.onBrightnessChanged(entityId, brightness)
-        }
-    }
-    fun setColorTemp(entityId: String, colorTemp: Float, isKelvin: Boolean) {
-        viewModelScope.launch {
-            homePresenter.onColorTempChanged(entityId, colorTemp, isKelvin)
-        }
-    }
-
     fun enableDisableSensor(sensorManager: SensorManager, sensorId: String, isEnabled: Boolean) {
         viewModelScope.launch {
             val basicSensor = sensorManager.getAvailableSensors(getApplication())
@@ -361,7 +310,7 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
         basicSensor: SensorManager.BasicSensor,
         isEnabled: Boolean
     ) {
-        homePresenter.getServerId()?.let { serverId ->
+        serverManager.getServer()?.id?.let { serverId ->
             sensorDao.setSensorsEnabled(listOf(basicSensor.id), serverId, isEnabled)
             SensorReceiver.updateAllSensors(getApplication())
         }
@@ -427,51 +376,6 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
         thermostatTileDao.add(updated)
     }
 
-    fun setTileShortcut(tileId: Int?, index: Int, entity: SimplifiedEntity) {
-        viewModelScope.launch {
-            val shortcutEntities = shortcutEntitiesMap[tileId]!!
-            if (index < shortcutEntities.size) {
-                shortcutEntities[index] = entity
-            } else {
-                shortcutEntities.add(entity)
-            }
-            homePresenter.setTileShortcuts(tileId, entities = shortcutEntities)
-        }
-    }
-
-    fun clearTileShortcut(tileId: Int?, index: Int) {
-        viewModelScope.launch {
-            val shortcutEntities = shortcutEntitiesMap[tileId]!!
-            if (index < shortcutEntities.size) {
-                shortcutEntities.removeAt(index)
-                homePresenter.setTileShortcuts(tileId, entities = shortcutEntities)
-            }
-        }
-    }
-
-    fun setToastEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            homePresenter.setWearToastConfirmation(enabled)
-            isToastEnabled.value = enabled
-        }
-    }
-
-    fun setShowShortcutTextEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            homePresenter.setShowShortcutTextEnabled(enabled)
-            isShowShortcutTextEnabled.value = enabled
-        }
-    }
-
-    fun setTemplateTileRefreshInterval(tileId: Int, interval: Int) {
-        viewModelScope.launch {
-            homePresenter.setTemplateTileRefreshInterval(tileId, interval)
-            templateTiles[tileId]?.let {
-                templateTiles[tileId] = it.copy(refreshInterval = interval)
-            }
-        }
-    }
-
     fun addFavoriteEntity(entityId: String) {
         viewModelScope.launch {
             favoritesDao.addToEnd(entityId)
@@ -497,14 +401,6 @@ class VehicleFavoritesPanoViewModel @Inject constructor(
             val name = attributes["friendly_name"]?.toString() ?: entityId
             favoriteCachesDao.add(FavoriteCaches(entityId, name, icon))
         }
-    }
-
-
-    fun logout() {
-        homePresenter.onLogoutClicked()
-
-        // also clear cache when logging out
-        clearCache()
     }
 
     private fun clearCache() {

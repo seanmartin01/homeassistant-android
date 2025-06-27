@@ -1,20 +1,20 @@
 package io.homeassistant.companion.android.util
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.painter.BrushPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.wear.compose.material.ToggleChipColors
-import androidx.wear.compose.material.ToggleChipDefaults
 import io.homeassistant.companion.android.common.data.integration.Entity
 import io.homeassistant.companion.android.common.data.integration.EntityPosition
 import io.homeassistant.companion.android.common.data.integration.domain
@@ -22,8 +22,94 @@ import io.homeassistant.companion.android.common.data.integration.getCoverPositi
 import io.homeassistant.companion.android.common.data.integration.getFanSpeed
 import io.homeassistant.companion.android.common.data.integration.getLightBrightness
 import io.homeassistant.companion.android.common.data.integration.getLightColor
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.Switch
+import androidx.compose.material.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 
-object AutomotiveToggleChip {
+/**
+ * A custom composable that mimics a Wear OS ToggleChip, built using Material Design 2
+ * for use in Android Automotive OS.
+ *
+ * It provides a large, easy-to-tap surface with a label and a toggle switch,
+ * prioritizing large touch targets and clear text for driver safety.
+ *
+ * @param label The text to display on the chip.
+ * @param checked The current checked state of the switch.
+ * @param onCheckedChange A lambda to be invoked when the user clicks the chip.
+ * @param modifier The modifier to be applied to the component.
+ * @param enabled Controls the enabled state of the component. When false, this component will not
+ * be interactive.
+ */
+@Composable
+fun AutomotiveToggleChip(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    // Surface provides the "chip" background and shape.
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(80.dp) // Generous height for easy tapping in a car
+            .clip(CircleShape), // Fully rounded corners
+        shape = CircleShape,
+        // In Material 2, colors are under `MaterialTheme.colors`
+        // `surface` is a good default background color.
+        color = MaterialTheme.colors.surface,
+        elevation = 2.dp // Add a subtle shadow to lift the chip
+    ) {
+        Row(
+            modifier = Modifier
+                // The clickable modifier makes the entire Row a single touch target.
+                .clickable(
+                    enabled = enabled,
+                    // Good for accessibility, announces it as a switch.
+                    role = Role.Switch,
+                    onClick = { onCheckedChange(!checked) }
+                )
+                .padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // The label for the setting
+            Text(
+                text = label,
+                // In Material 2, typography styles are like `body1`, `h6`, etc.
+                style = MaterialTheme.typography.body1,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f) // Text takes up available space
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // The actual switch control
+            Switch(
+                checked = checked,
+                // The parent Row handles the click, so we pass null here
+                // to avoid double-handling the event. The Switch will still
+                // visually react to the `checked` state change.
+                onCheckedChange = null,
+                enabled = enabled
+            )
+        }
+    }
+}
+
+object AutomotiveToggleChipColorsObject {
     /**
      * A function that provides chip colors that mostly follow M3 styling, but for use with M2
      * components that can to, when supported, provide a background for active entities that
@@ -34,7 +120,7 @@ object AutomotiveToggleChip {
      * @param entity The entity state on which the background for the active state should be based
      */
     @Composable
-    fun entityToggleChipBackgroundColors(entity: Entity<*>, checked: Boolean): ToggleChipColors {
+    fun entityToggleChipBackgroundColors(entity: Entity<*>, checked: Boolean): AutomotiveToggleChipColors {
         // For a toggleable entity, a custom background should only be used if it has:
         // a. a position (eg. fan speed, light brightness)
         // b. a custom color (eg. light color)
@@ -137,16 +223,16 @@ object AutomotiveToggleChip {
 
                     // Painters that use the color stops
                     // For unchecked with position, we can reuse the checked painter
-                    checkedBackgroundPaint = WearBrushPainter(
+                    checkedBackgroundPaint = BrushPainter(
                         Brush.horizontalGradient(*checkedColorStops)
                     )
-                    disabledCheckedBackgroundPaint = WearBrushPainter(
+                    disabledCheckedBackgroundPaint = BrushPainter(
                         Brush.horizontalGradient(*disabledCheckedColorStops)
                     )
-                    uncheckedBackgroundPaint = WearBrushPainter(
+                    uncheckedBackgroundPaint = BrushPainter(
                         Brush.horizontalGradient(*checkedColorStops)
                     )
-                    disabledUncheckedBackgroundPaint = WearBrushPainter(
+                    disabledUncheckedBackgroundPaint = BrushPainter(
                         Brush.horizontalGradient(*disabledCheckedColorStops)
                     )
                 } else {
@@ -156,10 +242,10 @@ object AutomotiveToggleChip {
                     disabledCheckedBackgroundColors = disabledCheckedBackgroundColors.reversed()
 
                     // Painters that match ToggleChipDefaults
-                    checkedBackgroundPaint = WearBrushPainter(Brush.linearGradient(checkedBackgroundColors))
-                    disabledCheckedBackgroundPaint = WearBrushPainter(Brush.linearGradient(disabledCheckedBackgroundColors))
-                    uncheckedBackgroundPaint = WearBrushPainter(Brush.linearGradient(uncheckedBackgroundColors))
-                    disabledUncheckedBackgroundPaint = WearBrushPainter(Brush.linearGradient(disabledUncheckedBackgroundColors))
+                    checkedBackgroundPaint = BrushPainter(Brush.linearGradient(checkedBackgroundColors))
+                    disabledCheckedBackgroundPaint = BrushPainter(Brush.linearGradient(disabledCheckedBackgroundColors))
+                    uncheckedBackgroundPaint = BrushPainter(Brush.linearGradient(uncheckedBackgroundColors))
+                    disabledUncheckedBackgroundPaint = BrushPainter(Brush.linearGradient(disabledUncheckedBackgroundColors))
                 }
 
                 defaultChipColors(
@@ -174,7 +260,7 @@ object AutomotiveToggleChip {
                     disabledUncheckedBackgroundPainter = disabledUncheckedBackgroundPaint
                 }
             }
-            else -> ToggleChipDefaults.toggleChipColors(
+            else -> defaultChipColors(
                 checkedStartBackgroundColor = MaterialTheme.colors.onSurface,
                 checkedEndBackgroundColor = MaterialTheme.colors.onSurface,
                 checkedContentColor = MaterialTheme.colors.onPrimary,
@@ -189,7 +275,7 @@ object AutomotiveToggleChip {
 
     /**
      * A copy of [androidx.wear.compose.material.ToggleChipDefaults.toggleChipColors] that returns
-     * [WearToggleChipColors] which allows the app to set the Painter for advanced use cases instead
+     * [AutomotiveToggleChipColors] which allows the app to set the Painter for advanced use cases instead
      * of only providing a Color.
      */
     @Composable
@@ -209,7 +295,7 @@ object AutomotiveToggleChip {
         uncheckedSecondaryContentColor: Color = uncheckedContentColor,
         uncheckedToggleControlColor: Color = uncheckedContentColor,
         gradientDirection: LayoutDirection = LocalLayoutDirection.current
-    ): WearToggleChipColors {
+    ): AutomotiveToggleChipColors {
         val checkedBackgroundColors: List<Color>
         val disabledCheckedBackgroundColors: List<Color>
         if (gradientDirection == LayoutDirection.Ltr) {
@@ -253,18 +339,18 @@ object AutomotiveToggleChip {
             )
         }
 
-        return WearToggleChipColors(
-            checkedBackgroundPainter = WearBrushPainter(Brush.linearGradient(checkedBackgroundColors)),
+        return AutomotiveToggleChipColors(
+            checkedBackgroundPainter = BrushPainter(Brush.linearGradient(checkedBackgroundColors)),
             checkedContentColor = checkedContentColor,
             checkedSecondaryContentColor = checkedSecondaryContentColor,
             checkedIconColor = checkedToggleControlColor,
-            uncheckedBackgroundPainter = WearBrushPainter(
+            uncheckedBackgroundPainter = BrushPainter(
                 Brush.linearGradient(uncheckedBackgroundColors)
             ),
             uncheckedContentColor = uncheckedContentColor,
             uncheckedSecondaryContentColor = uncheckedSecondaryContentColor,
             uncheckedIconColor = uncheckedToggleControlColor,
-            disabledCheckedBackgroundPainter = WearBrushPainter(
+            disabledCheckedBackgroundPainter = BrushPainter(
                 Brush.linearGradient(disabledCheckedBackgroundColors)
             ),
             disabledCheckedContentColor = checkedContentColor.copy(alpha = 0.38f),
@@ -274,7 +360,7 @@ object AutomotiveToggleChip {
             disabledCheckedIconColor = checkedToggleControlColor.copy(
                 alpha = 0.38f
             ),
-            disabledUncheckedBackgroundPainter = WearBrushPainter(
+            disabledUncheckedBackgroundPainter = BrushPainter(
                 Brush.linearGradient(disabledUncheckedBackgroundColors)
             ),
             disabledUncheckedContentColor = uncheckedContentColor.copy(
@@ -294,7 +380,7 @@ object AutomotiveToggleChip {
  * A copy of [androidx.wear.compose.material.DefaultToggleChipColors] with a public constructor and mutable
  * properties to allow the app to set the Painter for advanced use cases instead of only providing a Color.
  */
-class WearToggleChipColors(
+class AutomotiveToggleChipColors(
     var checkedBackgroundPainter: Painter,
     var checkedContentColor: Color,
     var checkedSecondaryContentColor: Color,
@@ -311,10 +397,10 @@ class WearToggleChipColors(
     var disabledUncheckedContentColor: Color,
     var disabledUncheckedSecondaryContentColor: Color,
     var disabledUncheckedIconColor: Color
-) : ToggleChipColors {
+) {
 
     @Composable
-    override fun background(enabled: Boolean, checked: Boolean): State<Painter> {
+    fun background(enabled: Boolean, checked: Boolean): State<Painter> {
         return rememberUpdatedState(
             if (enabled) {
                 if (checked) checkedBackgroundPainter else uncheckedBackgroundPainter
@@ -329,7 +415,7 @@ class WearToggleChipColors(
     }
 
     @Composable
-    override fun contentColor(enabled: Boolean, checked: Boolean): State<Color> {
+    fun contentColor(enabled: Boolean, checked: Boolean): State<Color> {
         return rememberUpdatedState(
             if (enabled) {
                 if (checked) checkedContentColor else uncheckedContentColor
@@ -340,7 +426,7 @@ class WearToggleChipColors(
     }
 
     @Composable
-    override fun secondaryContentColor(enabled: Boolean, checked: Boolean): State<Color> {
+    fun secondaryContentColor(enabled: Boolean, checked: Boolean): State<Color> {
         return rememberUpdatedState(
             if (enabled) {
                 if (checked) checkedSecondaryContentColor else uncheckedSecondaryContentColor
@@ -355,7 +441,7 @@ class WearToggleChipColors(
     }
 
     @Composable
-    override fun toggleControlColor(enabled: Boolean, checked: Boolean): State<Color> {
+    fun toggleControlColor(enabled: Boolean, checked: Boolean): State<Color> {
         return rememberUpdatedState(
             if (enabled) {
                 if (checked) checkedIconColor else uncheckedIconColor
@@ -370,7 +456,7 @@ class WearToggleChipColors(
         if (other == null) return false
         if (this::class != other::class) return false
 
-        other as WearToggleChipColors
+        other as AutomotiveToggleChipColors
 
         if (checkedBackgroundPainter != other.checkedBackgroundPainter) return false
         if (checkedContentColor != other.checkedContentColor) return false
@@ -423,50 +509,4 @@ class WearToggleChipColors(
         result = 31 * result + disabledUncheckedIconColor.hashCode()
         return result
     }
-}
-
-/**
- * A copy of [androidx.wear.compose.material.BrushPainter] because that class is marked as internal,
- * but contains an important override of the `intrinsicSize` property to Size.Unspecified which allows
- * it to work when using a horizontal gradient as the Chip background.
- * [androidx.compose.ui.graphics.painter.BrushPainter] only works for gradients that do not specify
- * offsets, so only linear gradients from top left to bottom right (= diagonal).
- */
-class WearBrushPainter(val brush: Brush) : Painter() {
-    private var alpha: Float = 1.0f
-
-    private var colorFilter: ColorFilter? = null
-
-    override fun DrawScope.onDraw() {
-        drawRect(brush = brush, alpha = alpha, colorFilter = colorFilter)
-    }
-
-    override fun applyAlpha(alpha: Float): Boolean {
-        this.alpha = alpha
-        return true
-    }
-
-    override fun applyColorFilter(colorFilter: ColorFilter?): Boolean {
-        this.colorFilter = colorFilter
-        return true
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is WearBrushPainter) return false
-
-        if (brush != other.brush) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        return brush.hashCode()
-    }
-
-    override fun toString(): String {
-        return "ColorPainter(brush=$brush)"
-    }
-
-    override val intrinsicSize: Size = Size.Unspecified
 }
